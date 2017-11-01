@@ -21,12 +21,20 @@ jQuery XPath plugin comes with two easy to use entrance points:
 
 1. ` $(context).xpath(expression, resolver) `
 2. ` $.xpath(context, expression, resolver) `
+3. ` $(context).expath(expression, resolver) `
+4. ` $.expath(context, expression, resolver) `
 
 In both cases the `resolver` function type parameter is optional and is only needed when the expression contains prefixes.
 In cases where the expression does not touch the document, the node type `context` parameter is not required.
-
+xpath() find element by non-normalized xpath selector.
+expath() normalizes xpath selector with normalize-space(), string-join(), normalize-text(), etc.
 Below are the sample queries.
 
+### Normalized vs non-normalized ###
+```js
+xpath("a[contains(text(), 'some string')]") //returns a[contains(text(), 'some string')]
+expath("a[contains(text(), 'some string')]") //returns a[contains(normalize-space(string-join(text(), ' ')), normalize-space('some string'))]
+```
 ### Running queries with context ###
 
 ```js
