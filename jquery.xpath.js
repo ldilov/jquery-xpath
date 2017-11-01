@@ -1,12 +1,12 @@
 /*
- * jQuery XPath plugin v0.3.1
- * https://github.com/ilinsky/jquery-xpath
- * Copyright 2015, Sergey Ilinsky
+ * jQuery XPath plugin v0.3.2
+ * https://github.com/ldilov/jquery-xpath
+ * Copyright 2017, Lazar Dilov
  * Dual licensed under the MIT and GPL licenses.
  *
  * Includes xpath.js - XPath 2.0 implementation in JavaScript
  * https://github.com/ilinsky/xpath.js
- * Copyright 2015, Sergey Ilinsky
+ * Copyright 2017, Sergey Ilinsky, Lazar Dilov
  * Dual licensed under the MIT and GPL licenses.
  *
  */
@@ -6332,10 +6332,64 @@ oHTMLStaticContext.defaultElementNamespace	= "http://www.w3.org/1999/xhtml";
 
 oXMLStaticContext.defaultFunctionNamespace	= oHTMLStaticContext.defaultFunctionNamespace;
 
-function fXPath_evaluate(oQuery, sExpression, fNSResolver) {
+function normalizeXpath(){
+	var xpathVersion = this.cdp.casper.options.xpathVersion;
+	
+		var newText = '',
+			selectorTexgex = new RegExp(/(['"])(.*?)\1/g),
+			regexNormalizer = new RegExp(/[-\/\\^*+?.()|[\]{}$]/g),
+			normalizer = "lower-case(normalize-space({INPUT}))";
+	
+		var regSelText, replRegex;
+	
+		return function (selector) {
+			if (!selector) {
+				return selector;
+			}
+	
+			var resultSelector = selector;
+	
+			while ((match = selectorTextRegex.exec(selector)) !== null) {
+				newText = match[1] + match[2] + match[1];
+				newText = newText.replace(/\$/g, '$$$&');
+	
+				var normText;
+				normText = normalizer.replace(/\{INPUT\}/, newText);
+	
+				regSelText = match[0].replace(regexNormalizer, '\\$&');
+				replRegex = new RegExp(regSelText, 'gi');
+	
+				normText = normText.replace(/\$/g, '$$$&');
+				resultSelector = resultSelector.replace(replRegex, normText);
+			}
+	
+			// @attribute-name, text(), name(), or .
+			var inputOptionsRegex = new RegExp(/(@[A-Za-z0-9\-:_]+|(?:text|name)\(\)|\.)\s*[,=]\s*['"]/g);
+			while ((inputOptionsMatch = inputOptionsRegex.exec(selector)) !== null) {
+				var originalInputOption = inputOptionsMatch[1];
+	
+				var inputOption = originalInputOption.replace(regexNormalizer, '\\$&');
+				inputOption = inputOption.replace(/\$/g, '$$$&');
+				var regEx = new RegExp(inputOption + '(\\s*(?:,|=))', 'g');
+				var norm;
+	
+				norm = normalizer.replace(/\{INPUT\}/, originalInputOption);
+	
+				norm = norm.replace(/\$/g, '$$$&');
+				resultSelector = resultSelector.replace(regEx, norm + '$1');
+			}
+
+				resultSelector = resultSelector.replace(/text\(\)/g, "string-join(text(), ' ')")
+	
+			return resultSelector;
+		};
+}
+function fXPath_evaluate(oQuery, sExpression, fNSResolver, normalize) {
 		if (typeof sExpression == "undefined" || sExpression === null)
 		sExpression	= '';
-
+		if(normalize){
+			sExpression = sExpression = normalizeXpath()(sExpression);
+		}
 		var oNode	= oQuery[0];
 	if (typeof oNode == "undefined")
 		oNode	= null;
@@ -6367,13 +6421,19 @@ function fXPath_evaluate(oQuery, sExpression, fNSResolver) {
 
 var oObject	= {};
 oObject.xpath	= function(oQuery, sExpression, fNSResolver) {
-	return fXPath_evaluate(oQuery instanceof cQuery ? oQuery : new cQuery(oQuery), sExpression, fNSResolver);
+	return fXPath_evaluate(oQuery instanceof cQuery ? oQuery : new cQuery(oQuery), sExpression, fNSResolver, false);
+};
+oObject.expath	= function(oQuery, sExpression, fNSResolver) {
+	return fXPath_evaluate(oQuery instanceof cQuery ? oQuery : new cQuery(oQuery), sExpression, fNSResolver, true);
 };
 cQuery.extend(cQuery, oObject);
 
 oObject	= {};
 oObject.xpath	= function(sExpression, fNSResolver) {
-	return fXPath_evaluate(this, sExpression, fNSResolver);
+	return fXPath_evaluate(this, sExpression, fNSResolver, false);
+};
+oObject.expath	= function(sExpression, fNSResolver) {
+	return fXPath_evaluate(this, sExpression, fNSResolver, true);
 };
 cQuery.extend(cQuery.prototype, oObject);
 

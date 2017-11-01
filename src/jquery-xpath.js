@@ -26,12 +26,65 @@ oHTMLStaticContext.defaultElementNamespace	= "http://www.w3.org/1999/xhtml";
 // Initialize XML context (this has default element null namespace)
 oXMLStaticContext.defaultFunctionNamespace	= oHTMLStaticContext.defaultFunctionNamespace;
 
-//
-function fXPath_evaluate(oQuery, sExpression, fNSResolver) {
+function normalizeXpath(){
+	var xpathVersion = this.cdp.casper.options.xpathVersion;
+	
+		var newText = '',
+			selectorTexgex = new RegExp(/(['"])(.*?)\1/g),
+			regexNormalizer = new RegExp(/[-\/\\^*+?.()|[\]{}$]/g),
+			normalizer = "lower-case(normalize-space({INPUT}))";
+	
+		var regSelText, replRegex;
+	
+		return function (selector) {
+			if (!selector) {
+				return selector;
+			}
+	
+			var resultSelector = selector;
+	
+			while ((match = selectorTextRegex.exec(selector)) !== null) {
+				newText = match[1] + match[2] + match[1];
+				newText = newText.replace(/\$/g, '$$$&');
+	
+				var normText;
+				normText = normalizer.replace(/\{INPUT\}/, newText);
+	
+				regSelText = match[0].replace(regexNormalizer, '\\$&');
+				replRegex = new RegExp(regSelText, 'gi');
+	
+				normText = normText.replace(/\$/g, '$$$&');
+				resultSelector = resultSelector.replace(replRegex, normText);
+			}
+	
+			// @attribute-name, text(), name(), or .
+			var inputOptionsRegex = new RegExp(/(@[A-Za-z0-9\-:_]+|(?:text|name)\(\)|\.)\s*[,=]\s*['"]/g);
+			while ((inputOptionsMatch = inputOptionsRegex.exec(selector)) !== null) {
+				var originalInputOption = inputOptionsMatch[1];
+	
+				var inputOption = originalInputOption.replace(regexNormalizer, '\\$&');
+				inputOption = inputOption.replace(/\$/g, '$$$&');
+				var regEx = new RegExp(inputOption + '(\\s*(?:,|=))', 'g');
+				var norm;
+	
+				norm = normalizer.replace(/\{INPUT\}/, originalInputOption);
+	
+				norm = norm.replace(/\$/g, '$$$&');
+				resultSelector = resultSelector.replace(regEx, norm + '$1');
+			}
+
+				resultSelector = resultSelector.replace(/text\(\)/g, "string-join(text(), ' ')")
+	
+			return resultSelector;
+		};
+}
+function fXPath_evaluate(oQuery, sExpression, fNSResolver, normalize) {
 	// Return empty jQuery object if expression missing
 	if (typeof sExpression == "undefined" || sExpression === null)
 		sExpression	= '';
-
+	if(normalize){
+		sExpression = sExpression = normalizeXpath()(sExpression);
+	}
 	// Check if context specified
 	var oNode	= oQuery[0];
 	if (typeof oNode == "undefined")
@@ -72,12 +125,19 @@ function fXPath_evaluate(oQuery, sExpression, fNSResolver) {
 // Extend jQuery
 var oObject	= {};
 oObject.xpath	= function(oQuery, sExpression, fNSResolver) {
-	return fXPath_evaluate(oQuery instanceof cQuery ? oQuery : new cQuery(oQuery), sExpression, fNSResolver);
+	return fXPath_evaluate(oQuery instanceof cQuery ? oQuery : new cQuery(oQuery), sExpression, fNSResolver, false);
+};
+oObject.expath	= function(oQuery, sExpression, fNSResolver) {
+	return fXPath_evaluate(oQuery instanceof cQuery ? oQuery : new cQuery(oQuery), sExpression, fNSResolver, true);
 };
 cQuery.extend(cQuery, oObject);
 
 oObject	= {};
 oObject.xpath	= function(sExpression, fNSResolver) {
-	return fXPath_evaluate(this, sExpression, fNSResolver);
+	return fXPath_evaluate(this, sExpression, fNSResolver, false);
 };
+oObject.expath	= function(sExpression, fNSResolver) {
+	return fXPath_evaluate(this, sExpression, fNSResolver, true);
+};
+
 cQuery.extend(cQuery.prototype, oObject);
